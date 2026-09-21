@@ -10,14 +10,22 @@ requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.20.0",
     "asyncpg>=0.31.0",
+    "fastapi>=0.141.1",
     "faster-whisper>=1.2.1",
     "httpx>=0.28.1",
+    "langchain-openai>=1.6.2",
+    "langgraph>=1.2.2",
+    "openai>=3.16.2",
     "passlib[bcrypt]>=1.7.4",
     "pgvector>=0.5.0",
+    "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.32",
     "sqlalchemy[asyncio]>=2.0.54",
     "torch>=2.5.1",
+    "uvicorn[standard]>=0.53.0",
+    "websockets>=17.1",
 ]
 
 [project.scripts]
