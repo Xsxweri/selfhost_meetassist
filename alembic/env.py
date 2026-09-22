@@ -15,6 +15,8 @@ from app.db.session import Base
 import app.models.meeting  
 import app.models.transcript
 import app.models.user
+import app.models.consent
+
 
 # 3. 获取 .env 中的数据库 URL
 settings = get_settings()

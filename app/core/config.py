@@ -28,6 +28,23 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "qwen2.5:7b"
     EMBEDDING_MODEL: str = "bge-m3"
 
+    # 运行模式：local(本地开发) / hybrid(混合) / cloud(云端)
+    RUN_MODE: str = "hybrid"
+
+    # ASR适配层
+    ASR_BACKEND: str = "local"  # local / cloud("aliyun" / "tencent")
+    WHISPER_MODEL: str = "small"  # tiny, base, small, medium, large
+    WHISPER_DEVICE: str = "auto"  # auto / cpu / cuda
+    WHISPER_COMPUTE_TYPE: str = "int8"  # 8GB 显存友好
+    ASR_LANGUAGE: str | None = None  # 语言，None 表示自动检测
+    ASR_SAMPLE_RATE: int = 16000  # 采样率
+    ASR_FLUSH_SECONDS: int = 5  # 缓冲满多少秒自动转写一次
+
+    # 云端ASR(占位，hybrid/cloud 模式接入阿里/腾讯/讯飞）
+    CLOUD_ASR_PROVIDER: str = ""
+    CLOUD_ASR_ENDPOINT: str = ""
+    CLOUD_ASR_API_KEY: str = ""
+
     # JWT 配置（鉴权用）
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"

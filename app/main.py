@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.api.v1 import meetings, auth
+from app.api.v1 import meetings, auth, consents, stream
 
 
 from app.core.config import get_settings
@@ -22,6 +22,8 @@ app = FastAPI(
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(meetings.router, prefix="/api/v1")
+app.include_router(consents.router, prefix="/api/v1")
+app.include_router(stream.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
