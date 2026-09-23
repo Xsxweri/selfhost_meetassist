@@ -4,6 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.curd.consent import create_consent, get_consent_status, list_consents
 from app.curd.meeting import get_meeting
+from app.curd.audit_log import record_event
+from app.models.consent import ConsentAction
+from app.models.audit_log import AuditAction
 from app.models.user import User
 from app.schemas.consent import ConsentCreate, ConsentResponse, ConsentStatus
 
@@ -29,16 +32,33 @@ async def api_grant_or_revoke(
 ):
     """创建授权事件路由"""
     await _ensure_owned_meeting(db, meeting_id, current_user)
-    return await create_consent(
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent")
+    consent = await create_consent(
         db,
         meeting_id=meeting_id,
         user_id=current_user.id,
         consent_type=payload.consent_type,
         action=payload.action,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        ip_address=ip,
+        user_agent=ua,
         note=payload.note,
     )
+    await record_event(
+        db,
+        action=(
+            AuditAction.CONSENT_REVOKE.value
+            if payload.action == ConsentAction.REVOKE
+            else AuditAction.CONSENT_GRANT.value
+        ),
+        user_id=current_user.id,
+        meeting_id=meeting_id,
+        resource="consent",
+        detail={"consent_type": payload.consent_type.value, "note": payload.note},
+        ip_address=ip,
+        user_agent=ua,
+    )
+    return consent
 
 
 @router.get("", response_model=list[ConsentResponse])

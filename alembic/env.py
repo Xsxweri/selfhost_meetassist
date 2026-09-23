@@ -16,6 +16,9 @@ import app.models.meeting
 import app.models.transcript
 import app.models.user
 import app.models.consent
+import app.models.action_item
+import app.models.audit_log
+import app.models.share_link
 
 
 # 3. 获取 .env 中的数据库 URL

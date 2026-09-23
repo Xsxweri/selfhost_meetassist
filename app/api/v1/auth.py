@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.curd.user import create_user, get_user_by_email
+from app.curd.audit_log import record_event
+from app.models.audit_log import AuditAction
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserResponse
 
@@ -23,6 +25,7 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
@@ -33,6 +36,15 @@ async def login(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    await record_event(
+        db,
+        action=AuditAction.USER_LOGIN.value,
+        user_id=user.id,
+        resource="auth",
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
     return Token(access_token=create_access_token(str(user.id)))
 
 

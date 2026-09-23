@@ -35,8 +35,8 @@ class AsrService:
         """调用 Ollama Embedding API (bge-m3)"""
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                f"{settings.OLLAMA_BASE_URL}/api/embeddings",
-                json={"model": settings.EMBEDDING_MODEL, "prompt": text}
+                f"{settings.OLLAMA_BASE_URL}/api/embed",
+                json={"model": settings.EMBEDDING_MODEL, "input": text}
             )
             resp.raise_for_status()
-            return resp.json()["embedding"]
+            return resp.json()["embedding"][0]

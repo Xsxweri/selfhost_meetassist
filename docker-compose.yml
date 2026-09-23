@@ -11,6 +11,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    container_name: meeting-assistant-redis
+    restart: always
+    ports:
+      - "6379:6379"
 
 volumes:
   pgdata:
