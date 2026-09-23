@@ -107,20 +107,29 @@ class LlmService:
     }
 
     # ==================== 语义搜索 ====================
-    async def semantic_search(self, query: str, meeting_id: str = None, limit: int = 5) -> list[dict]:
+    async def semantic_search(self, query: str, owner_id: str, meeting_id: str = None, limit: int = 5) -> list[dict]:
         query_embedding = await self._get_embedding(query)
         sql = """
-            SELECT id, text, 
-                segments->0->>'speaker' AS speaker,
-                created_at,
-                1 - (embedding <=> :qvec) AS similarity
-            FROM transcripts
-            WHERE (:mid IS NULL OR meeting_id = :mid)
-            AND embedding IS NOT NULL
-            ORDER BY embedding <=> :qvec
+            SELECT t.id, t.text,
+                t.segments->0->>'speaker' AS speaker,
+                t.meeting_id,
+                t.created_at,
+                1 - (t.embedding <=> :qvec) AS similarity
+            FROM transcripts t
+            JOIN meetings m ON m.id = t.meeting_id
+            WHERE m.owner_id = :owner
+              AND m.deleted_at IS NULL
+              AND (:mid IS NULL OR t.meeting_id = :mid)
+              AND t.embedding IS NOT NULL
+            ORDER BY t.embedding <=> :qvec
             LIMIT :lim
         """
-        params = {"qvec": str(query_embedding), "mid": meeting_id, "lim": limit}
+        params = {
+            "qvec": str(query_embedding),
+            "owner": owner_id,
+            "mid": meeting_id,
+            "lim": limit,
+        }
         result = await self.db.execute(text(sql), params)
         return [dict(row) for row in result.mappings().fetchall()]
 
@@ -141,8 +150,11 @@ class LlmService:
     async def _get_embedding(self, text: str) -> list[float]:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                f"{settings.OLLAMA_BASE_URL}/api/embeddings",
+                f"{settings.OLLAMA_BASE_URL}/api/embed",
                 json={"model": settings.EMBEDDING_MODEL, "input": text},
             )
             resp.raise_for_status()
-            return resp.json()["embeddings"][0]
+            data = resp.json()
+
+        # /api/embed 返回 {"embeddings": [[...]]}；兼容旧 {"embedding": [...]}
+        return data["embeddings"][0] if "embeddings" in data else data["embedding"]

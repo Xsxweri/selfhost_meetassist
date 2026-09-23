@@ -39,4 +39,6 @@ class AsrService:
                 json={"model": settings.EMBEDDING_MODEL, "input": text}
             )
             resp.raise_for_status()
-            return resp.json()["embedding"][0]
+            data = resp.json()
+        # /api/embed 返回 {"embeddings": [[...]]}；兼容旧 {"embedding": [...]}
+        return data["embeddings"][0] if "embeddings" in data else data["embedding"]
