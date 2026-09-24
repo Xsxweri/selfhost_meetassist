@@ -21,6 +21,10 @@ class AuditAction(str, enum.Enum):
     SHARE_ACCESS = "share.access"
     EXPORT = "export"
 
+    # ===== Agent 审计 =====
+    AGENT_RUN = "agent.run"  # 一次完整 Agent 目标执行
+    AGENT_ACTION = "agent.action"    # 单个敏感工具执行留痕
+
 
 class AuditLog(Base):
     """审计日志（追加式，不可修改，用于合规留痕）"""

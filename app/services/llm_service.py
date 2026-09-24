@@ -5,6 +5,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.transcript import Transcript
 from app.core.config import get_settings
+from app.core.prompts import  render_prompt
 
 settings = get_settings()
 _CODE_FENCE = "`" * 3
@@ -26,20 +27,7 @@ class LlmService:
         if not contents:
             return {"summary": "暂无转录内容", "key_points": [], "action_items": []}
 
-        prompt = (
-            "你是会议纪要助手。请阅读以下会议转录，输出严格 JSON"
-            "（不要任何额外文字、不要 markdown 代码块），结构如下：\n"
-            "{\n"
-            '  "summary": "整体纪要，200字以内",\n'
-            '  "key_points": ["要点1", "要点2"],\n'
-            '  "action_items": [\n'
-            '    {"content": "待办内容", "assignee": "负责人或null", '
-            '"due_date": "YYYY-MM-DD或null", "priority": "low|medium|high"}\n'
-            "  ]\n"
-            "}\n"
-            "若没有待办，action_items 为空数组。\n\n"
-            "会议转录：\n" + "\n".join(contents)
-        )
+        prompt = render_prompt("meeting_summary",  transcript="\n".join(contents))
         raw = await self._call_llm(prompt)
         return self._parse_summary(raw)
 

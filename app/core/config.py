@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "qwen2.5:7b"
     EMBEDDING_MODEL: str = "bge-m3"
 
+    # 提示词
+    PROMPTS_DIR: str = "prompts"
+
     # 运行模式：local(本地开发) / hybrid(混合) / cloud(云端)
     RUN_MODE: str = "hybrid"
 

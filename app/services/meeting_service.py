@@ -18,6 +18,6 @@ class MeetingService:
         """获取会议纪要"""
         return await self.llm.generate_summary(meeting_id)
 
-    async def search(self, query: str, meeting_id: str = None, limit: int = 5) -> list[dict]:
+    async def search(self, query: str, owner_id: str,meeting_id: str = None, limit: int = 5) -> list[dict]:
         """语义搜索会议内容"""
-        return await self.llm.semantic_search(query, meeting_id, limit)
+        return await self.llm.semantic_search(query, owner_id=owner_id, meeting_id=meeting_id, limit=limit)
