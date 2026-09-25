@@ -25,6 +25,10 @@ class AuditAction(str, enum.Enum):
     AGENT_RUN = "agent.run"  # 一次完整 Agent 目标执行
     AGENT_ACTION = "agent.action"    # 单个敏感工具执行留痕
 
+    # ===== 记忆层 审计 =====
+    MEMORY_WRITE = "memory.write"  # 写入长期记忆
+    MEMORY_SUPERSEDE = "memory.supersede"  # 记忆被新事实取代
+
 
 class AuditLog(Base):
     """审计日志（追加式，不可修改，用于合规留痕）"""

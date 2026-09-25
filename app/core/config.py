@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     ASR_BACKEND: str = "local"  # local / cloud("aliyun" / "tencent")
     WHISPER_MODEL: str = "small"  # tiny, base, small, medium, large
     WHISPER_DEVICE: str = "auto"  # auto / cpu / cuda
-    WHISPER_COMPUTE_TYPE: str = "int8"  # 8GB 显存友好
+    WHISPER_COMPUTE_TYPE: str = "int8"  # 显存友好
     ASR_LANGUAGE: str | None = None  # 语言，None 表示自动检测
     ASR_SAMPLE_RATE: int = 16000  # 采样率
     ASR_FLUSH_SECONDS: int = 5  # 缓冲满多少秒自动转写一次
@@ -55,6 +55,15 @@ class Settings(BaseSettings):
 
     # Redis / Celery 异步任务队列
     REDIS_URL: str = "redis://localhost:6379/0"
+
+    # 记忆层
+    CHECKPOINT_BACKEND: str = "memory"  # memory | postgres
+    MEMORY_ENABLED: bool = True
+    MEMORY_TOP_K: int = 6  # 召回条数
+    MEMORY_SIM_THRESHOLD: float = 0.82  # 抽取去重阈值（超过视为同一事实→演进）
+    MEMORY_RECALL_MIN_SIM: float = 0.30  # 召回相似度下限
+    MEMORY_HYBRID: bool = True  # 向量 + 关键词(trgm) 混合
+    THREAD_SUMMARY_THRESHOLD: int = 12  # 会话超过该轮数触发滚动摘要
 
     model_config = SettingsConfigDict(
         env_file=".env",

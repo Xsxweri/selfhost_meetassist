@@ -11,6 +11,9 @@ class AgentState(TypedDict, total=False):
     # 对话
     goal: str
     history: Annotated[list, operator.add]   # 跨轮累积
+    # 记忆层
+    memory_context: list    # recall 节点注入的长期记忆（RAG）
+    thread_summary: str     # 会话滚动摘要
     # 规划与执行
     plan: list          # [{"tool","args","reason"}]
     cursor: int         # 当前步骤下标

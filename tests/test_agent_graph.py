@@ -28,6 +28,13 @@ def patched(monkeypatch):
     """隔离 DB / LLM / 审计，仅测状态机逻辑"""
     monkeypatch.setattr(g, "AsyncSessionLocal", lambda: _FakeSession())
 
+    class _FakeMemoryService:
+        def __init__(self, db): pass
+
+        async def recall(self, *a, **k): return []
+
+    monkeypatch.setattr(g, "MemoryService", _FakeMemoryService)
+
     async def _no_record(*a, **k):
         return None
     monkeypatch.setattr(g, "record_event", _no_record)
@@ -105,3 +112,26 @@ async def test_mixed_plan_stops_at_first_sensitive(patched):
     assert "__interrupt__" in res
     assert patched["calls"] == [("list_meetings", {})]
     assert res["__interrupt__"][0].value["tool"] == "update_action_item"
+
+
+async def test_recall_node_injects_memory(patched, monkeypatch):
+    """recall 节点检索到的长期记忆应注入 planner 提示词（RAG）"""
+    class _Mem:
+        def __init__(self, db): pass
+        async def recall(self, query, owner_id, **k):
+            return [{"kind": "decision", "subject": "预算", "content": "批准预算500万"}]
+    monkeypatch.setattr(g, "MemoryService", _Mem)
+
+    seen = {}
+    async def _chat(prompt, system=None, json_mode=False):
+        if json_mode:
+            seen["plan_prompt"] = prompt
+            return '{"steps":[]}'
+        return "完成"
+    monkeypatch.setattr(g, "chat", _chat)
+
+    graph = g.build_graph()
+    res = await graph.ainvoke(_input("预算多少"), config={"configurable": {"thread_id": "t6"}})
+    assert res["status"] == "done"
+    assert res.get("memory_context")
+    assert "批准预算500万" in seen["plan_prompt"]

@@ -17,11 +17,14 @@ from app.agent.prompts import (
 )
 from app.agent.state import AgentState
 from app.agent.tools import SENSITIVE_TOOLS, TOOLS, dispatch, tool_catalog
+from app.core.config import get_settings
 from app.curd.audit_log import record_event
 from app.db.session import AsyncSessionLocal
 from app.models.audit_log import AuditAction
+from app.services.memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 _CODE_FENCE = "`" * 3
 _JSON_OBJ = re.compile(r"\{.*\}", re.DOTALL)
@@ -33,8 +36,29 @@ _LARGE_KEYS = {"content_base64"}  # 直接剔除、仅保留占位大的字段
 
 
 # ==================== 节点 ====================
+async def recall(state: AgentState) -> dict:
+    """RAG 注入：检索与目标相关的长期记忆供 planner 参考；失败静默降级为空记忆"""
+    if not settings.MEMORY_ENABLED:
+        return {}
+    goal = (state.get("goal") or "").strip()
+    if not goal:
+        return {}
+    try:
+        async with AsyncSessionLocal() as db:
+            hits = await MemoryService(db).recall(
+                goal, uuid.UUID(state["owner_id"]), limit=settings.MEMORY_TOP_K
+            )
+        return {"memory_context": [
+            {"kind": h.get("kind"), "subject": h.get("subject"), "content": h.get("content")}
+            for h in hits
+        ]}
+    except Exception as e:  # noqa: BLE001 - 记忆检索失败不阻断主流程
+        logger.warning("memory recall failed, degrade to no-memory: %s", e)
+        return {}
+
+
 async def planner(state: AgentState) -> dict:
-    prompt = build_plan_prompt(tool_catalog(), state.get("history") or [], state["goal"])
+    prompt = build_plan_prompt(tool_catalog(), state.get("history") or [], state["goal"], state.get("memory_context") or [])
     raw = await chat(prompt, system=plan_system(), json_mode=True)
     plan = _parse_plan(raw)
     return {"plan": plan, "cursor": 0, "results": []}
@@ -216,8 +240,9 @@ async def audit(state: AgentState) -> dict:
 
 
 # ==================== 组图 ====================
-def build_graph():
+def build_graph(checkpointer=None):
     b = StateGraph(AgentState)
+    b.add_node("recall", recall)
     b.add_node("planner", planner)
     b.add_node("router", router)
     b.add_node("human_gate", human_gate)
@@ -225,7 +250,8 @@ def build_graph():
     b.add_node("reporter", reporter)
     b.add_node("audit", audit)
 
-    b.add_edge(START, "planner")
+    b.add_edge(START, "recall")
+    b.add_edge("recall", "planner")
     b.add_edge("planner", "router")
     b.add_conditional_edges("router", route_fn,
                             {"human_gate": "human_gate", "executor": "executor", "reporter": "reporter"})
@@ -236,4 +262,4 @@ def build_graph():
 
     # 注意：InMemorySaver 仅单进程有效；多进程/持久化需改用
     # langgraph-checkpoint-postgres（需在 pyproject 增加依赖）
-    return b.compile(checkpointer=InMemorySaver())
+    return b.compile(checkpointer=checkpointer or InMemorySaver())

@@ -5,7 +5,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.transcript import Transcript
 from app.core.config import get_settings
-from app.core.prompts import  render_prompt
+from app.core.prompts import render_prompt
 
 settings = get_settings()
 _CODE_FENCE = "`" * 3
@@ -94,6 +94,33 @@ class LlmService:
             "action_items": items,
     }
 
+    # ==================== 记忆抽取 ====================
+    async def extract_memories(self, text: str) -> list[dict]:
+        """从会议内容抽取可长期复用的记忆候选；容错解析 JSON"""
+        prompt = render_prompt("memory_extract_user", transcript=text)
+        raw = await self._call_llm(prompt, json_mode=True)
+        return self._parse_memories(raw)
+
+    @staticmethod
+    def _parse_memories(raw: str) -> list[dict]:
+        cleaned = (raw or "").strip()
+        if cleaned.startswith(_CODE_FENCE):
+            cleaned = cleaned.strip("`")
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:]
+            cleaned = cleaned.strip()
+        try:
+            data = json.loads(cleaned)
+        except (json.JSONDecodeError, AttributeError):
+            return []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = data.get("memories", [])
+        else:
+            items = []
+        return [i for i in items if isinstance(i, dict)]
+
     # ==================== 语义搜索 ====================
     async def semantic_search(self, query: str, owner_id: str, meeting_id: str = None, limit: int = 5) -> list[dict]:
         query_embedding = await self._get_embedding(query)
@@ -122,15 +149,18 @@ class LlmService:
         return [dict(row) for row in result.mappings().fetchall()]
 
     # ==================== 内部工具方法 ====================
-    async def _call_llm(self, prompt: str) -> str:
+    async def _call_llm(self, prompt: str, json_mode: bool = False) -> str:
+        payload = {
+            "model": settings.LLM_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+        }
+        if json_mode:
+            payload["format"] = "json"
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
                 f"{settings.OLLAMA_BASE_URL}/api/chat",
-                json={
-                    "model": settings.LLM_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": False,
-                },
+                json=payload,
             )
             resp.raise_for_status()
             return resp.json()["message"]["content"]

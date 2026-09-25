@@ -14,10 +14,10 @@ def test_parse_plan_valid():
 
 
 def test_parse_plan_code_fence():
-    raw = '```json\n{"steps":[{"tool":"search_meetings","args":{"query":"x"}}]}\n```'
+    raw = '```json\n{"steps":[{"tool":"recall","args":{"query":"x"}}]}\n```'
     plan = _parse_plan(raw)
     assert len(plan) == 1
-    assert plan[0]["tool"] == "search_meetings"
+    assert plan[0]["tool"] == "recall"
     assert plan[0]["reason"] == ""
 
 
@@ -115,6 +115,7 @@ def test_prompt_files_exist_and_nonempty(name):
 def test_prompt_placeholders_present():
     plan_user = load_prompt("agent_plan_user")
     assert "{{catalog}}" in plan_user and "{{goal}}" in plan_user and "{{history}}" in plan_user
+    assert "{{memory}}" in plan_user
     assert "{{transcript}}" in load_prompt("summary_user")
     assert "{{goal}}" in load_prompt("agent_report_user")
 

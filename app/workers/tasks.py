@@ -8,6 +8,7 @@ from app.db.session import AsyncSessionLocal
 from app.curd.action_item import replace_action_items
 from app.models.meeting import Meeting
 from app.services.llm_service import LlmService
+from app.services.memory_service import MemoryService
 
 
 async def _run_generate_summary(meeting_id: str) -> dict:
@@ -41,4 +42,23 @@ async def _run_generate_summary(meeting_id: str) -> dict:
 @celery.task(name="generate_summary", bind=True)
 def generate_summary_task(self, meeting_id: str):
     """异步生成会议纪要（Celery 任务，Windows 需 --pool=solo）"""
-    return asyncio.run(_run_generate_summary(meeting_id))
+    result = asyncio.run(_run_generate_summary(meeting_id))
+
+    if isinstance(result, dict) and result.get("status") == "ok":
+        try:
+            extract_memories_task.delay(meeting_id)
+        except Exception:
+            pass
+    return result
+
+
+async def _run_extract_memories(meeting_id: str) -> dict:
+    """在独立事件循环 + 独立会话中抽取长期记忆"""
+    async with AsyncSessionLocal() as db:
+        return await MemoryService(db).ingest_from_meeting(uuid.UUID(meeting_id))
+
+
+@celery.task(name="extract_memories")
+def extract_memories_task(meeting_id: str):
+    """异步抽取长期记忆（Celery 任务，Windows 需 --pool=solo）"""
+    return asyncio.run(_run_extract_memories(meeting_id))

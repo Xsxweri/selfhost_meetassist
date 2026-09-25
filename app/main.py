@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.api.v1 import meetings, auth, consents, stream, summaries, audit, shares, exports, tasks, search, agent
-
+from app.agent.checkpoint import make_checkpointer
+from app.agent.graph import build_graph
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -9,7 +10,13 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 表结构统一由 alembic 管理，启动不再自动 create_all
-    yield
+    checkpointer, cleanup = await make_checkpointer()
+    app.state.graph = build_graph(checkpointer=checkpointer)
+    try:
+        yield
+    finally:
+        if cleanup:
+            await cleanup()
 
 app = FastAPI(
     title=settings.APP_NAME,

@@ -13,12 +13,27 @@ from app.curd.action_item import (
     update_action_item,
 )
 from app.curd.meeting import get_meeting, list_meetings
+from app.curd.memory import create_memory
+from app.curd.audit_log import record_event
 from app.curd.share_link import create_share_link
+from app.models.audit_log import AuditAction
+from app.models.memory import MemoryKind
 from app.models.transcript import Transcript
 from app.services import export_service
 from app.services.llm_service import LlmService
+from app.services.memory_service import MemoryService
 
 _NULLISH = {"", "null", "none", "无", "n/a"}
+_VALID_KINDS = {k.value for k in MemoryKind}
+
+
+def _clamp_importance(v) -> float:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return 0.5
+    return max(0.0, min(1.0, f))
+
 
 @dataclass
 class ToolSpec:
@@ -68,28 +83,36 @@ async def _owned(ctx: AgentContext, meeting_id: Any):
     return m
 
 
-# ==================== 只读工具 ====================
-async def _search_meetings(ctx: AgentContext, args: dict) -> dict:
+# ==================== 统一召回（记忆 + 证据） ====================
+async def _recall(ctx: AgentContext, args: dict) -> dict:
     query = (args.get("query") or "").strip()
     if not query:
         return {"ok": False, "error": "query required"}
-    limit = min(int(args.get("limit") or 5), 20)
-    rows = await LlmService(ctx.db).semantic_search(
-        query, owner_id=str(ctx.owner_id), limit=limit
+    limit = min(int(args.get("limit") or 6), 20)
+    kind = args.get("kind") or None
+    subject = args.get("subject") or None
+    memories = await MemoryService(ctx.db).recall(
+        query, ctx.owner_id, kind=kind, subject=subject, limit=limit
     )
-    return {
-        "ok": True,
-        "count": len(rows),
-        "results": [
-            {
-                "meeting_id": str(r["meeting_id"]),
-                "text": r["text"],
-                "similarity": round(float(r["similarity"]), 3),
-                "created_at": str(r["created_at"]),
-            }
+    mem_out = [
+        {
+            "kind": m.get("kind"), "subject": m.get("subject"), "content": m.get("content"),
+            "meeting_id": str(m["meeting_id"]) if m.get("meeting_id") else None,
+            "score": m.get("score"),
+        }
+        for m in memories
+    ]
+    evidence = []
+    if args.get("include_evidence"):
+        rows = await LlmService(ctx.db).semantic_search(
+            query, owner_id=str(ctx.owner_id), limit=limit
+        )
+        evidence = [
+            {"meeting_id": str(r["meeting_id"]), "text": r["text"],
+             "similarity": round(float(r["similarity"]), 3)}
             for r in rows
-        ],
-    }
+        ]
+    return {"ok": True, "count": len(mem_out), "memories": mem_out, "evidence": evidence}
 
 
 # ==================== 读写工具 ====================
@@ -129,13 +152,13 @@ async def _get_meeting_detail(ctx: AgentContext, args: dict) -> dict:
     }
 
 
-# ==================== 列出待办事项 ====================
-async def _list_action_items(ctx: AgentContext, args: dict) -> dict:
-    m = await _owned(ctx, args.get("meeting_id"))
-    if isinstance(m, dict):
-        return m
-    items = await list_action_items(ctx.db, m.id)
-    return {"ok": True, "count": len(items), "action_items": [_item_dict(i) for i in items]}
+# # ==================== 列出待办事项 ====================
+# async def _list_action_items(ctx: AgentContext, args: dict) -> dict:
+#     m = await _owned(ctx, args.get("meeting_id"))
+#     if isinstance(m, dict):
+#         return m
+#     items = await list_action_items(ctx.db, m.id)
+#     return {"ok": True, "count": len(items), "action_items": [_item_dict(i) for i in items]}
 
 
 # ==================== 生成会议摘要 ====================
@@ -230,6 +253,27 @@ async def _export_meeting(ctx: AgentContext, args: dict) -> dict:
     }
 
 
+# ==================== 写入长期记忆（用户显式要求记住） ====================
+async def _remember(ctx: AgentContext, args: dict) -> dict:
+    content = (args.get("content") or "").strip()
+    if not content:
+        return {"ok": False, "error": "content required"}
+    kind = args.get("kind") if args.get("kind") in _VALID_KINDS else "fact"
+    subject = args.get("subject") or None
+    importance = _clamp_importance(args.get("importance"))
+    emb = await LlmService(ctx.db)._get_embedding(content)
+    mem = await create_memory(
+        ctx.db, owner_id=ctx.owner_id, content=content, kind=kind,
+        subject=subject, importance=importance, embedding=emb,
+    )
+    await record_event(
+        ctx.db, action=AuditAction.MEMORY_WRITE.value, user_id=ctx.user_id,
+        resource="memory",
+        detail={"memory_id": str(mem.id), "kind": kind, "subject": subject, "source": "agent_explicit"},
+    )
+    return {"ok": True, "memory_id": str(mem.id), "kind": kind, "subject": subject}
+
+
 # ==================== 工具注册表 ====================
 TOOLS: dict[str, ToolSpec] = {}
 
@@ -239,13 +283,16 @@ def _reg(spec: ToolSpec) -> None:
 
 
 _reg(ToolSpec(
-    name="search_meetings",
-    description="跨当前用户全部会议做语义检索，用于回答“上次关于X的结论”这类问题",
+    name="recall",
+    description="跨会议统一召回：优先返回提炼后的长期记忆（决策/承诺/偏好/事实），可选下钻转录证据。用于“上次关于X的结论”这类问题",
     params={
         "query": {"type": "str", "required": True, "desc": "检索词/自然语言问题"},
-        "limit": {"type": "int", "required": False, "desc": "返回条数", "default": 5},
+        "kind": {"type": "str", "required": False, "desc": "decision|action|preference|fact|entity"},
+        "subject": {"type": "str", "required": False, "desc": "主题/实体过滤"},
+        "limit": {"type": "int", "required": False, "desc": "返回条数", "default": 6},
+        "include_evidence": {"type": "bool", "required": False, "desc": "是否附带转录原文证据", "default": False},
     },
-    sensitive=False, handler=_search_meetings,
+    sensitive=False, handler=_recall,
 ))
 _reg(ToolSpec(
     name="list_meetings",
@@ -260,12 +307,6 @@ _reg(ToolSpec(
     sensitive=False, handler=_get_meeting_detail,
 ))
 _reg(ToolSpec(
-    name="list_action_items",
-    description="列出某场会议的全部待办事项",
-    params={"meeting_id": {"type": "str", "required": True, "desc": "会议UUID"}},
-    sensitive=False, handler=_list_action_items,
-))
-_reg(ToolSpec(
     name="generate_summary",
     description="为某场会议生成结构化纪要与待办并落库；若已有纪要默认不覆盖，需 overwrite=true 才重生成",
     params={
@@ -273,6 +314,17 @@ _reg(ToolSpec(
         "overwrite": {"type": "bool", "required": False, "desc": "已有纪要时是否覆盖重生成", "default": False},
     },
     sensitive=False, handler=_generate_summary,
+))
+_reg(ToolSpec(
+    name="remember",
+    description="把用户明确要求记住的信息写入长期记忆（跨会议可召回）",
+    params={
+        "content": {"type": "str", "required": True, "desc": "要记住的一句话结论"},
+        "kind": {"type": "str", "required": False, "desc": "decision|action|preference|fact|entity", "default": "fact"},
+        "subject": {"type": "str", "required": False, "desc": "主题/实体关键词"},
+        "importance": {"type": "float", "required": False, "desc": "0~1 重要度", "default": 0.5},
+    },
+    sensitive=False, handler=_remember,
 ))
 _reg(ToolSpec(
     name="update_action_item",
