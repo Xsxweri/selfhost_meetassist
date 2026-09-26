@@ -1,5 +1,6 @@
 import json
 import httpx
+import asyncio
 from datetime import datetime
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,20 @@ from app.core.prompts import render_prompt
 settings = get_settings()
 _CODE_FENCE = "`" * 3
 _NULLISH = {"", "null", "none", "无", "n/a"}
+_clients: dict[int, httpx.AsyncClient] = {}
+
+
+def _shared_client() -> httpx.AsyncClient:
+    """按事件循环复用一个 httpx.AsyncClient（连接池 + 免重复建 SSLContext）。
+    每次调用新建 client 会在 Windows 上因 SSLContext/CA 加载白白多花数百毫秒。"""
+    loop = asyncio.get_running_loop()
+    key = id(loop)
+    c = _clients.get(key)
+    if c is None or c.is_closed:
+        c = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
+        _clients[key] = c
+    return c
+
 
 class LlmService:
     def __init__(self, db: AsyncSession):
@@ -27,7 +42,7 @@ class LlmService:
         if not contents:
             return {"summary": "暂无转录内容", "key_points": [], "action_items": []}
 
-        prompt = render_prompt("meeting_summary",  transcript="\n".join(contents))
+        prompt = render_prompt("summary_user",  transcript="\n".join(contents))
         raw = await self._call_llm(prompt)
         return self._parse_summary(raw)
 
@@ -98,7 +113,7 @@ class LlmService:
     async def extract_memories(self, text: str) -> list[dict]:
         """从会议内容抽取可长期复用的记忆候选；容错解析 JSON"""
         prompt = render_prompt("memory_extract_user", transcript=text)
-        raw = await self._call_llm(prompt, json_mode=True)
+        raw = await self._call_llm(prompt, json_mode=True, temperature=0.0)
         return self._parse_memories(raw)
 
     @staticmethod
@@ -149,7 +164,7 @@ class LlmService:
         return [dict(row) for row in result.mappings().fetchall()]
 
     # ==================== 内部工具方法 ====================
-    async def _call_llm(self, prompt: str, json_mode: bool = False) -> str:
+    async def _call_llm(self, prompt: str, json_mode: bool = False, temperature: float | None = None) -> str:
         payload = {
             "model": settings.LLM_MODEL,
             "messages": [{"role": "user", "content": prompt}],
@@ -157,22 +172,22 @@ class LlmService:
         }
         if json_mode:
             payload["format"] = "json"
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{settings.OLLAMA_BASE_URL}/api/chat",
-                json=payload,
-            )
-            resp.raise_for_status()
-            return resp.json()["message"]["content"]
+        if temperature is not None:
+            payload["options"] = {"temperature": temperature}
+        resp = await _shared_client().post(
+            f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
 
     async def _get_embedding(self, text: str) -> list[float]:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
+        resp = await _shared_client().post(
                 f"{settings.OLLAMA_BASE_URL}/api/embed",
                 json={"model": settings.EMBEDDING_MODEL, "input": text},
+                timeout=30.0,
             )
-            resp.raise_for_status()
-            data = resp.json()
+        resp.raise_for_status()
+        data = resp.json()
 
         # /api/embed 返回 {"embeddings": [[...]]}；兼容旧 {"embedding": [...]}
         return data["embeddings"][0] if "embeddings" in data else data["embedding"]
