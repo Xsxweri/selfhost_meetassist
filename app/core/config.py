@@ -1,5 +1,10 @@
 from functools import lru_cache
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 生产环境禁止使用的弱密钥占位值
+_INSECURE_SECRETS = {"your-secret-key-change-in-production", "", "change-me", "secret", "changeme"}
+
 
 class Settings(BaseSettings):
     """应用配置，从 .env 文件自动读取"""
@@ -7,6 +12,8 @@ class Settings(BaseSettings):
     # 应用基础配置
     APP_NAME: str = "Meeting Assistant"
     DEBUG: bool = True
+    SQL_ECHO: bool = False  #SQL 回显开关，与 DEBUG 解耦；生产保持 False
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"  # 逗号分隔白名单
 
     # 数据库配置
     DB_HOST: str = "localhost"
@@ -70,6 +77,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,  # 环境变量名严格区分大小写
     )
+
+    @model_validator(mode="after")
+    def check_insecure_settings(self):
+        if not self.DEBUG and self.SECRET_KEY.strip() in _INSECURE_SECRETS:
+            raise ValueError(
+                "生产环境(DEBUG=False)必须配置强随机 SECRET_KEY，禁止使用默认占位值"
+            )
+        return self
 
 
 @lru_cache

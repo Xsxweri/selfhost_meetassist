@@ -4,6 +4,7 @@ __pycache__/
 # 环境变量与密钥
 .env
 .env.*
+!.env.example
 
 # Python 产物
 *.py[cod]

@@ -12,7 +12,8 @@ settings = get_settings()
 # ========== 1. 创建异步引擎 ==========
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,          # 开发环境打印 SQL 日志，方便调试
+    #echo=settings.DEBUG,          # 开发环境打印 SQL 日志，方便调试
+    echo=settings.SQL_ECHO,       # SQL 回显开关，与 DEBUG 解耦；生产保持 False
     pool_size=10,                 # 连接池常驻连接数
     max_overflow=20,              # 允许临时增加的连接数
     pool_recycle=3600,            # 连接回收时间（秒），防止数据库端超时断开
