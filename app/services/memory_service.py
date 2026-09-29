@@ -84,7 +84,7 @@ class MemoryService:
             if emb:
                 similar = await memory_crud.find_similar(
                     db, owner_id=m.owner_id, embedding=emb, limit=1,
-                    min_similarity=settings.MEMORY_SIM_THRESHOLD, subject=subject,
+                    min_similarity=settings.MEMORY_SIM_THRESHOLD,
                 )
 
             new = await memory_crud.create_memory(

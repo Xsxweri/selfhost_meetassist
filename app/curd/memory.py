@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.memory import Memory
@@ -181,3 +181,27 @@ async def touch_access(db: AsyncSession, mem: Memory) -> Memory:
 async def soft_delete_memory(db: AsyncSession, mem: Memory) -> None:
     mem.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+async def archive_superseded(db: AsyncSession, *, before_days: int = 90) -> int:
+    """软删除已被演进(valid_to 早于 cutoff)且超保留期的记忆，控制表膨胀。
+
+    演进链保留before_days天供审计追溯，之后软删（deleted_at打标，非物理删除）。
+    召回路径本就过滤superseded_by/valid_to，归档不影响检索，仅回收存储。
+    返回归档行数。
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=before_days)
+    stmt = (
+        update(Memory)
+        .where(
+            Memory.superseded_by.is_not(None),
+            Memory.valid_to.is_not(None),
+            Memory.valid_to < cutoff,
+            Memory.deleted_at.is_(None),
+        )
+        .values(deleted_at=datetime.now(timezone.utc))
+        .execution_options(synchronize_session=False)
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount or 0
