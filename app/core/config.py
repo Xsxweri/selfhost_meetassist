@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     MEMORY_ENABLED: bool = True
     MEMORY_TOP_K: int = 6  # 召回条数
     MEMORY_SIM_THRESHOLD: float = 0.82  # 抽取去重阈值（超过视为同一事实→演进）
-    MEMORY_RECALL_MIN_SIM: float = 0.30  # 召回相似度下限
+    MEMORY_RECALL_MIN_SIM: float = 0.65  # 召回相似度下限
     MEMORY_HYBRID: bool = True  # 向量 + 关键词(trgm) 混合
     THREAD_SUMMARY_THRESHOLD: int = 12  # 会话超过该轮数触发滚动摘要
 
