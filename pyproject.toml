@@ -29,6 +29,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "redis>=6.4.0",
     "reportlab>=5.0.1",
+    "slowapi>=0.1.10",
     "sqlalchemy[asyncio]>=2.0.54",
     "torch>=2.5.1",
     "uvicorn[standard]>=0.53.0",

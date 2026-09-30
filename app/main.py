@@ -1,10 +1,14 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.api.v1 import meetings, auth, consents, stream, summaries, audit, shares, exports, tasks, search, agent
 from app.agent.checkpoint import make_checkpointer
 from app.agent.graph import build_graph
 from app.core.config import get_settings
+from app.core.rate_limit import limiter
+
 
 settings = get_settings()
 
@@ -34,6 +38,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加限流器
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(meetings.router, prefix="/api/v1")

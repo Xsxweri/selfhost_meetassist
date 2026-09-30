@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.rate_limit import limiter
 from app.curd.meeting import get_meeting, get_active_meeting_by_id
 from app.curd.action_item import list_action_items
 from app.curd.share_link import (
@@ -101,6 +102,7 @@ async def api_revoke_share(
 
 
 @public_router.get("/{token}", response_model=SharedMeetingResponse)
+@limiter.limit("30/minute")
 async def api_shared_meeting(token: str, request: Request, db: AsyncSession = Depends(get_db)):
     """公开只读访问，无需鉴权，凭 token"""
     link = await get_share_link_by_token(db, token)
@@ -124,6 +126,7 @@ async def api_shared_meeting(token: str, request: Request, db: AsyncSession = De
 
 
 @public_router.get("/{token}/export")
+@limiter.limit("10/minute")
 async def api_shared_export(
     token: str,
     request: Request,
