@@ -1,3 +1,5 @@
+name: meeting-assistant
+
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -11,12 +13,74 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d meeting_assistant" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   redis:
     image: redis:7-alpine
     container_name: meeting-assistant-redis
     restart: always
     ports:
       - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  app:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    container_name: meeting-assistant-app
+    restart: always
+    env_file: ../.env
+    environment:
+      DB_HOST: db                       # 容器内指向服务名，覆盖 .env 的 localhost
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    container_name: meeting-assistant-worker
+    restart: always
+    command: celery -A app.workers.celery_app worker -l info
+    env_file: ../.env
+    environment:
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    container_name: meeting-assistant-beat
+    restart: always
+    command: celery -A app.workers.celery_app beat -l info
+    env_file: ../.env
+    environment:
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+    depends_on:
+      redis:
+        condition: service_healthy
 
 volumes:
   pgdata:

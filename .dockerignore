@@ -1,0 +1,22 @@
+.venv/
+.git/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+# 测试与量化脚本不入镜像
+tests/
+scripts/
+# 测试音频/导出产物
+*.wav
+*.mp3
+/*.pdf
+/*.docx
+meeting.*
+real.*
+shared.*
+# 真实密钥用 env_file 注入，不烤进镜像
+.env
