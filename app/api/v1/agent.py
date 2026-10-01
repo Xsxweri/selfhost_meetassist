@@ -1,6 +1,8 @@
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +11,7 @@ from app.agent.graph import build_graph
 from app.agent.llm import chat
 from app.core.config import get_settings
 from app.curd.conversation_thread import bump_turn, get_thread, upsert_thread
+from app.db.session import AsyncSessionLocal
 from app.models.user import User
 from app.schemas.agent import AgentChatIn, AgentChatOut, AgentResumeIn
 
@@ -90,6 +93,71 @@ async def agent_chat(
         new_summary = await _roll_summary(history[:-6], thread.rolling_summary)
     await bump_turn(db, thread, new_summary=new_summary)
     return _shape(thread_id, result)
+
+
+def _sse(event: str, data:dict) -> str:
+    """格式化SSE事件"""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@router.post("/chat/stream")
+async def agent_chat_stream(
+        payload: AgentChatIn,
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Agent 对话 SSE 流式输出"""
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    existing = await get_thread(db, thread_id)
+    if existing and existing.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Thread not owned by current user")
+    thread = await upsert_thread(
+        db, thread_id=thread_id, owner_id=current_user.id, title=payload.message[:60]
+    )
+    graph = get_graph(request.app)
+    config = {"configurable": {"thread_id": thread_id}}
+    input_state = {
+        "owner_id": str(current_user.id),
+        "user_id": str(current_user.id),
+        "ip": request.client.host if request.client else None,
+        "user_agent": request.headers.get("user-agent"),
+        "goal": payload.message,
+        "history": [{"role": "user", "content": payload.message}],
+    }
+    prev_summary = thread.rolling_summary
+    turn_count = thread.turn_count
+
+    async def _gen():
+        yield _sse("start", {"thread_id": thread_id})
+        try:
+            async for chunk in graph.astream(input_state, config=config, stream_mode="updates"):
+                for node in chunk:
+                    if node != "__interrupt__":
+                        yield _sse("node", {"node": node, "status": "done"})
+            # 流结束：区分「被 interrupt 暂停」还是「正常完成」
+            state = await graph.aget_state(config)
+            hit_interrupt = False
+            for task in getattr(state, "tasks", []):
+                for intr in getattr(task, "interrupts", ()):
+                    yield _sse("confirmation", {"thread_id": thread_id, "confirmation": intr.value})
+                    hit_interrupt = True
+            if hit_interrupt:
+                return
+            values = state.values or {}
+            history = values.get("history") or []
+            yield _sse("done", {"thread_id": thread_id, "status": values.get("status", "done"), "report": values.get("final_report", "")})
+            # 轮次计数 + 滚动摘要
+            new_summary = None
+            if turn_count + 1 >= settings.THREAD_SUMMARY_THRESHOLD and len(history) > 6:
+                new_summary = await _roll_summary(history[:-6], prev_summary)
+            async with AsyncSessionLocal() as s:
+                t = await get_thread(s, thread_id)
+                if t:
+                    await bump_turn(s, t, new_summary=new_summary)
+        except Exception as e:
+            yield _sse("error", {"detail": f"{type(e).__name__}: {e}"})
+    return StreamingResponse(_gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/resume", response_model=AgentChatOut)
