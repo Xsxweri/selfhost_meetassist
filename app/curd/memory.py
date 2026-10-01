@@ -183,9 +183,68 @@ async def soft_delete_memory(db: AsyncSession, mem: Memory) -> None:
     await db.commit()
 
 
-async def archive_superseded(db: AsyncSession, *, before_days: int = 90) -> int:
-    """软删除已被演进(valid_to 早于 cutoff)且超保留期的记忆，控制表膨胀。
+async def update_memory(db: AsyncSession, mem: Memory, **fields) -> Memory:
+    """更新记忆可变字段（kind/subject/content/importance）；fields已由API层exclude_unset过滤"""
+    for key, value in fields.items():
+        if hasattr(mem, key):
+            setattr(mem, key, value)
+    await db.commit()
+    await db.refresh(mem)
+    return mem
 
+
+async def get_memory_chain(
+    db: AsyncSession, memory_id: uuid.UUID, owner_id: uuid.UUID
+) -> list[Memory]:
+    """获取记忆完整演进链（最旧→最新），含被supersede的历史版本，仅当前 owner"""
+    start = await db.execute(
+        select(Memory).where(
+            Memory.id == memory_id,
+            Memory.owner_id == owner_id,
+            Memory.deleted_at.is_(None),
+        )
+    )
+    node = start.scalar_one_or_none()
+    if not node:
+        return []
+    # 先顺着superseded_by走到最新版本
+    seen = {node.id}
+    cur = node
+    while cur.superseded_by and cur.superseded_by not in seen:
+        nxt = await db.execute(
+            select(Memory).where(
+                Memory.id == cur.superseded_by, Memory.owner_id == owner_id
+            )
+        )
+        nxt_node = nxt.scalar_one_or_none()
+        if not nxt_node:
+            break
+        seen.add(nxt_node.id)
+        cur = nxt_node
+    # 再从最新反查superseded_by==cur.id逐层收集到最旧
+    chain = [cur]
+    visited = {cur.id}
+    while True:
+        prev = await db.execute(
+            select(Memory).where(
+                Memory.superseded_by == cur.id,
+                Memory.owner_id == owner_id,
+                Memory.deleted_at.is_(None),
+            )
+        )
+        prev_node = prev.scalars().first()
+        if not prev_node or prev_node.id in visited:
+            break
+        visited.add(prev_node.id)
+        chain.append(prev_node)
+        cur = prev_node
+    chain.reverse()
+    return chain
+
+
+async def archive_superseded(db: AsyncSession, *, before_days: int = 90) -> int:
+    """
+    软删除已被演进(valid_to 早于 cutoff)且超保留期的记忆，控制表膨胀。
     演进链保留before_days天供审计追溯，之后软删（deleted_at打标，非物理删除）。
     召回路径本就过滤superseded_by/valid_to，归档不影响检索，仅回收存储。
     返回归档行数。

@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
-from app.api.v1 import meetings, auth, consents, stream, summaries, audit, shares, exports, tasks, search, agent
+from app.api.v1 import meetings, auth, consents, stream, summaries, audit, shares, exports, tasks, search, agent, memory
 from app.agent.checkpoint import make_checkpointer
 from app.agent.graph import build_graph
 from app.core.config import get_settings
@@ -63,6 +63,7 @@ app.include_router(shares.public_router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 app.include_router(agent.router, prefix="/api/v1")
+app.include_router(memory.router, prefix="/api/v1")
 
 
 @app.get("/")
