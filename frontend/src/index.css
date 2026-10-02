@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50:  #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-ink-900: #0f172a;
+  --color-ink-700: #334155;
+  --color-ink-500: #64748b;
+  --color-ink-300: #cbd5e1;
+  --color-surface: #ffffff;
+  --color-canvas: #f8fafc;
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --radius-card: 1rem;
+  --shadow-card: 0 1px 3px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06);
+}
+
+@layer base {
+  html { font-family: var(--font-sans); }
+  body { background: var(--color-canvas); color: var(--color-ink-900); -webkit-font-smoothing: antialiased; }
+}
+
+/* —— 全局页面转场（View Transitions）—— */
+::view-transition-old(root) { animation: vt-fade-out .28s ease both; }
+::view-transition-new(root) { animation: vt-fade-in  .32s ease both; }
+@keyframes vt-fade-out { to { opacity: 0; transform: scale(.985); } }
+@keyframes vt-fade-in  { from { opacity: 0; transform: scale(1.01); } }
+
+/* 会议卡片 → 详情 hero 的共享元素 */
+.meeting-hero { view-transition-name: meeting-hero; }
