@@ -1,5 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -16,6 +17,7 @@ from app.curd.audit_log import record_event
 from app.models.consent import ConsentAction, ConsentType
 from app.models.audit_log import AuditAction
 from app.models.user import User
+from app.models.transcript import Transcript
 from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingUpdate
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
@@ -144,3 +146,27 @@ async def api_restore_meeting(
         user_agent=request.headers.get("user-agent"),
     )
     return meeting
+
+@router.get("/{meeting_id}/transcripts")
+async def api_list_transcripts(
+    meeting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """分段转录（时间戳/说话人/文本），供前端转录查看页；按时间升序"""
+    meeting = await get_meeting(db, meeting_id, owner_id=current_user.id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    res = await db.execute(
+        select(Transcript).where(Transcript.meeting_id == meeting_id).order_by(Transcript.created_at)
+    )
+    out = []
+    for t in res.scalars().all():
+        for seg in (t.segments or [{}]):
+            out.append({
+                "start": seg.get("start"),
+                "end": seg.get("end"),
+                "speaker": seg.get("speaker", "SPEAKER_00"),
+                "text": seg.get("text") or t.text or "",
+            })
+    return out
