@@ -35,7 +35,7 @@ async def get_consent_status(db:AsyncSession, meeting_id:uuid.UUID, user_id: uui
     rows = await list_consents(db, meeting_id, user_id)
     latest: dict[str, Consent] = {}
     for r in rows:
-        latest[r.consent_type] = r  # 升序遍历，最后一条即最新
+        latest.setdefault(r.consent_type, r)
     status = []
     for t in ConsentType:
         rec = latest.get(t.value)
