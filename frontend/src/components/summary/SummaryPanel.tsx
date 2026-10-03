@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import toast from "react-hot-toast";
-import { Sparkles, Trash2, ArrowRight } from "lucide-react";
-import { ActionItems, Summaries, Tasks } from "../../lib/api";
+import { Sparkles, Trash2, ArrowRight, Pencil } from "lucide-react";
+import { ActionItems, Meetings, Summaries, Tasks, errMsg } from "../../lib/api";
 import type { ActionItemResponse } from "../../lib/types";
 import { Button, Skeleton } from "../ui";
 
@@ -13,6 +13,9 @@ const LABEL: Record<string, string> = { pending: "待处理", confirmed: "已确
 export default function SummaryPanel({ id }: { id: string }) {
   const qc = useQueryClient();
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const sumQ = useQuery({ queryKey: ["summary", id], queryFn: () => Summaries.get(id) });
   const taskQ = useQuery({
@@ -27,6 +30,17 @@ export default function SummaryPanel({ id }: { id: string }) {
   }, [taskQ.data]);
 
   const generate = async () => { const { task_id } = await Summaries.generateAsync(id); setTaskId(task_id); };
+   const startEdit = () => { setDraft(sumQ.data?.summary ?? ""); setEditing(true); };
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      await Meetings.update(id, { summary: draft });
+      await qc.invalidateQueries({ queryKey: ["summary", id] });
+      setEditing(false);
+      toast.success("纪要已保存");
+    } catch (e) { toast.error(errMsg(e, "保存失败")); }
+    finally { setSaving(false); }
+  };
   const advance = (it: ActionItemResponse) =>
     ActionItems.update(id, it.id, { status: FLOW[it.status] ?? "done" }).then(() => qc.invalidateQueries({ queryKey: ["summary", id] }));
   const remove = (it: ActionItemResponse) =>
@@ -42,18 +56,39 @@ export default function SummaryPanel({ id }: { id: string }) {
       <div className="rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-card)]">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold">会议纪要</h3>
-          <Button onClick={generate} disabled={!!taskId}>
-            <Sparkles size={16} /> {taskId ? "生成中…" : (sumQ.data?.summary ? "重新生成" : "生成纪要")}
-          </Button>
+          <div className="flex gap-2">
+            {!editing && sumQ.data?.summary && (
+              <Button variant="ghost" size="sm" onClick={startEdit}><Pencil size={16} /> 编辑</Button>
+            )}
+            <Button onClick={generate} disabled={!!taskId || editing}>
+              <Sparkles size={16} /> {taskId ? "生成中…" : (sumQ.data?.summary ? "重新生成" : "生成纪要")}
+            </Button>
+          </div>
         </div>
         {taskId && (
           <div className="mb-3 h-1 overflow-hidden rounded bg-brand-50">
             <motion.div className="h-full w-1/3 bg-brand-500" animate={{ x: ["-100%", "300%"] }} transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }} />
           </div>
         )}
-        {sumQ.data?.summary
-          ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{sumQ.data.summary}</p>
-          : <p className="text-sm text-ink-500">尚无纪要，点右上「生成纪要」（异步，自动轮询）。</p>}
+        {editing ? (
+          <div className="space-y-3">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={12}
+              className="w-full rounded-lg border border-[var(--color-line)] bg-canvas p-3 text-sm leading-relaxed text-ink-900 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              placeholder="编辑会议纪要…"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>取消</Button>
+              <Button size="sm" onClick={saveEdit} disabled={saving}>{saving ? "保存中…" : "保存"}</Button>
+            </div>
+          </div>
+        ) : sumQ.data?.summary ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{sumQ.data.summary}</p>
+        ) : (
+          <p className="text-sm text-ink-500">尚无纪要，点右上「生成纪要」（异步，自动轮询）。</p>
+        )}
       </div>
 
       <div>

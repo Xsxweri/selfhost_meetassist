@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Download, FileText, FileType2, Hash } from "lucide-react";
-import { exportUrl } from "../lib/api";
+import { downloadExport } from "../lib/api";
 
 export default function ExportMenu({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
@@ -25,11 +25,11 @@ export default function ExportMenu({ id }: { id: string }) {
             className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl bg-surface shadow-[var(--shadow-card)] ring-1 ring-black/5"
           >
             {items.map(({ fmt, label, icon: Icon }) => (
-              <a key={fmt} href={exportUrl(id, fmt)} download
-                onClick={() => setOpen(false)}
+              <button key={fmt}
+                onClick={() => { setOpen(false); downloadExport(id, fmt); }}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm text-ink-700 transition hover:bg-brand-50 hover:text-brand-600">
                 <Icon size={16} /> {label}
-              </a>
+              </button>
             ))}
           </motion.div>
         )}

@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Radio } from "lucide-react";
+import { ArrowLeft, Radio, Share2 } from "lucide-react";
 import { Meetings } from "../lib/api";
 import ExportMenu from "../components/ExportMenu";
+import ShareDialog from "../components/ShareDialog";
 import TranscriptView from "../components/transcript/TranscriptView";
 import SummaryPanel from "../components/summary/SummaryPanel";
 import LiveTranscription from "../components/live/LiveTranscription";
-import Placeholder from "../pages/Placeholder";
+import MeetingSettings from "../components/settings/MeetingSettings";
 import { format } from "date-fns";
 
 const TABS = [
@@ -22,6 +23,7 @@ type Tab = typeof TABS[number]["key"];
 export default function MeetingDetail() {
   const { id } = useParams();
   const [tab, setTab] = useState<Tab>("summary");
+  const [shareOpen, setShareOpen] = useState(false);
   const { data: m } = useQuery({ queryKey: ["meeting", id], queryFn: () => Meetings.get(id!) });
 
   return (
@@ -37,6 +39,10 @@ export default function MeetingDetail() {
             className="flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600 active:scale-[.97]">
             <Radio size={16} /> 开始录制
           </Link>
+          <button onClick={() => setShareOpen(true)}
+            className="flex items-center gap-2 rounded-lg bg-surface px-4 py-2 text-sm font-medium text-ink-700 ring-1 ring-ink-900/10 transition hover:bg-brand-50 hover:text-brand-600 active:scale-[.97]">
+            <Share2 size={16} /> 分享
+          </button>
           {m && <ExportMenu id={m.id} />}
         </div>
       </div>
@@ -56,8 +62,12 @@ export default function MeetingDetail() {
           {tab === "summary" && <SummaryPanel id={id!} />}
           {tab === "transcript" && <TranscriptView id={id!} />}
           {tab === "live" && <LiveTranscription id={id!} />}
-          {tab === "settings" && <Placeholder title="会议设置：重命名 / 删除 / 同意范围 / 分享（P3）" />}
+          {tab === "settings" && <MeetingSettings id={id!} />}
         </motion.div>
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {shareOpen && m && <ShareDialog meetingId={m.id} onClose={() => setShareOpen(false)} />}
       </AnimatePresence>
     </div>
   );
