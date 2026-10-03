@@ -1,0 +1,21 @@
+{
+  "owner_email": "a@b.com",
+  "cases": [
+    {"query": "500万", "gold_contains": ["批准预算500万"]},
+    {"query": "Q3市场预算批准了多少钱", "gold_contains": ["批准预算500万"]},
+    {"query": "谁负责提交合规报告", "gold_contains": ["李四需在下周五前提交合规报告"]},
+    {"query": "客户A的合同金额是多少", "gold_contains": ["客户A合同金额定为120万元"]},
+    {"query": "王五", "gold_contains": ["王五是后端组长"]},
+    {"query": "产品V2什么时候上线", "gold_contains": ["产品V2正式上线时间定为9月30日"]},
+    {"query": "自动化测试覆盖率", "gold_contains": ["当前自动化测试覆盖率为75%"]},
+    {"query": "最终选了哪家云服务商", "gold_contains": ["选定阿里云，签约三年"]},
+    {"query": "今年用户流失情况怎么样", "gold_contains": ["今年用户流失率达22%"]},
+    {"query": "财务第一笔钱什么时候拨", "gold_contains": ["财务需在下周一前拨付首笔200万元"]},
+    {"query": "赵六", "gold_contains": ["赵六是客户A的对接销售"]},
+    {"query": "客户A喜欢怎么沟通", "gold_contains": ["客户偏好通过邮件沟通"]},
+    {"query": "数据中台一期投多少钱", "gold_contains": ["数据中台一期投入300万元"]},
+    {"query": "运营组要建什么模型", "gold_contains": ["运营组需在下月前建立用户分层模型"]},
+    {"query": "日均请求量", "gold_contains": ["现有系统日均请求量2000万次"]},
+    {"query": "团队倾向怎么做系统迁移", "gold_contains": ["团队倾向渐进式迁移"]}
+  ]
+}

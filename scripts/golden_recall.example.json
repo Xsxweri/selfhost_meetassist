@@ -1,0 +1,8 @@
+{
+  "owner_email": "me@test.com",
+  "cases": [
+    {"query": "上次预算批了多少钱", "gold_contains": ["批准预算500万"]},
+    {"query": "团建定在什么时候", "gold_contains": ["团建", "周五"]},
+    {"query": "张三的联系方式", "gold_contains": ["13800000000"]}
+  ]
+}
