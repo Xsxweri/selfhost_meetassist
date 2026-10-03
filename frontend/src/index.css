@@ -1,21 +1,88 @@
 @import "tailwindcss";
 
+/* 手动深色模式：html 上加 .dark 生效（配合 theme store 切换） */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
+  /* —— 结构色（浅色默认；.dark 覆盖同名变量即可全局切换）—— */
+  --color-canvas:  #f0f0ee;            /* 页面背景 · 暖纸白 */
+  --color-sidebar: #f8f8f6;            /* 侧栏 · 微暖灰 */
+  --color-surface: #ffffff;            /* 卡片 */
+  --color-line:    rgba(15, 23, 42, .07);
+
+  --color-ink-900: #1a1c20;            /* 主文字 · 非纯黑 */
+  --color-ink-700: #3d424b;
+  --color-ink-500: #6b7280;
+  --color-ink-300: #d7dae0;
+
+  /* —— 品牌 & 当前模块强调色（accent 运行时被 Layout 覆盖）—— */
   --color-brand-50:  #eef2ff;
   --color-brand-100: #e0e7ff;
   --color-brand-400: #818cf8;
   --color-brand-500: #6366f1;
   --color-brand-600: #4f46e5;
   --color-brand-700: #4338ca;
-  --color-ink-900: #0f172a;
-  --color-ink-700: #334155;
-  --color-ink-500: #64748b;
-  --color-ink-300: #cbd5e1;
-  --color-surface: #ffffff;
-  --color-canvas: #f8fafc;
+  --color-accent:      #2f6fed;
+  --color-accent-soft: rgba(47, 111, 237, .13);
+
+  /* —— 8 个一级模块专属色 —— */
+  --color-mod-dashboard: #5a6170;      /* 工作台 · 中性灰 */
+  --color-mod-meeting:   #e5484d;      /* 会议 · 录制红 */
+  --color-mod-agent:     #7c5cff;      /* Agent · AI 紫 */
+  --color-mod-memory:    #2f6fed;      /* 记忆库 · 黛青（品牌主色）*/
+  --color-mod-search:    #12a594;      /* 搜索 · 青绿 */
+  --color-mod-settings:  #8e96a3;      /* 设置 · 墨灰 */
+  --color-mod-audit:     #f0913b;      /* 审计 · 闸门橙 */
+  --color-mod-share:     #0e8fa8;      /* 分享 · 青蓝 */
+
+  /* —— 跨页语义状态色 —— */
+  --color-danger:  #e5484d;            /* 录制中 / 危险 · 红 */
+  --color-confirm: #f0913b;            /* 人工闸门 / 待确认 · 橙 */
+  --color-recall:  #7c5cff;            /* 记忆召回 · 紫 */
+  --color-ok:      #12a594;            /* 完成 / 健康 · 青绿 */
+  --color-degrade: #d97706;            /* 降级 · 琥珀 */
+
   --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --radius-card: 1rem;
-  --shadow-card: 0 1px 3px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, .06), 0 8px 24px rgba(15, 23, 42, .06);
+}
+
+/* —— 深色主题（夜读）：覆盖同名变量 —— */
+.dark {
+  --color-canvas:  #16181c;            /* 深空灰 */
+  --color-sidebar: #1c1f26;
+  --color-surface: #232730;
+  --color-line:    rgba(255, 255, 255, .08);
+
+  --color-ink-900: #edeef0;            /* 文字反转 */
+  --color-ink-700: #c7cad1;
+  --color-ink-500: #9aa0aa;
+  --color-ink-300: #3a3f4a;
+
+  --color-brand-50:  rgba(91, 141, 255, .14);
+  --color-brand-100: rgba(91, 141, 255, .2);
+  --color-brand-600: #5b8dff;          /* accent 提亮 */
+  --color-brand-700: #6f9bff;
+  --color-accent:      #5b8dff;
+  --color-accent-soft: rgba(91, 141, 255, .16);
+
+  /* 模块色深色提亮，保证在深背景上的对比度 */
+  --color-mod-dashboard: #8a91a0;
+  --color-mod-meeting:   #ff6369;
+  --color-mod-agent:     #9d85ff;
+  --color-mod-memory:    #5b8dff;
+  --color-mod-search:    #2dd4bf;
+  --color-mod-settings:  #aab2bf;
+  --color-mod-audit:     #ffa94d;
+  --color-mod-share:     #22b8cf;
+
+  --color-danger:  #ff6369;
+  --color-confirm: #ffa94d;
+  --color-recall:  #9d85ff;
+  --color-ok:      #2dd4bf;
+  --color-degrade: #fbbf24;
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
 }
 
 @layer base {

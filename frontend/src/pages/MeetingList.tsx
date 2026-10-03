@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { Plus, FileText, CalendarDays } from "lucide-react";
 import toast from "react-hot-toast";
 import { Meetings, errMsg } from "../lib/api";
-import { Button, Card, Skeleton, Badge } from "../components/ui";
+import { Button, Card, Skeleton, Badge, PageHeader } from "../components/ui";
 import { format } from "date-fns";
 
 export default function MeetingList() {
@@ -20,12 +20,7 @@ export default function MeetingList() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight meeting-hero">我的会议</h1>
-          <p className="text-sm text-ink-500 mt-1">共 {data?.length ?? 0} 场</p>
-        </div>
-      </header>
+      <PageHeader title="我的会议" icon={FileText} subtitle={`共 ${data?.length ?? 0} 场`} titleClassName="meeting-hero" />
 
       <form onSubmit={(e) => { e.preventDefault(); title.trim() && create.mutate(title.trim()); }} className="flex gap-2 mb-6">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="新建会议标题…"
