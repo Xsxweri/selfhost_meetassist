@@ -2,7 +2,7 @@ import axios from "axios";
 import { useAuth } from "../store/auth";
 import { streamAgentChat } from "./sse";
 import type {
-  AgentChatOut, AuditLogResponse, ConfirmationOut, ConsentStatus, MeetingResponse,
+  AgentChatOut, AuditLogResponse, ConsentStatus, MeetingResponse,
   MemoryResponse, SearchResponse, ShareLinkResponse, SharedMeetingResponse,
   SummaryResponse, TaskStatus, Token, UserResponse, ActionItemResponse, TranscriptSegment,
   ConsentType, ConsentResponse,
@@ -57,30 +57,54 @@ export const ActionItems = {
 };
 
 export const Tasks = { status: (tid: string) => http.get<TaskStatus>(`/tasks/${tid}`).then(r => r.data) };
-export const Search = { query: (q: string, meeting_id?: string) => http.get<SearchResponse>("/search", { params: { q, meeting_id } }).then(r => r.data) };
-export const Audits = { list: (skip = 0, limit = 50) => http.get<AuditLogResponse[]>("/audits", { params: { skip, limit } }).then(r => r.data) };
+
+export const Search = {
+  all: (q: string, limit = 10) => http.get<SearchResponse>("/search", { params: { q, limit } }).then(r => r.data),
+  inMeeting: (id: string, q: string, limit = 5) => http.get<SearchResponse>(`/meetings/${id}/search`, { params: { q, limit } }).then(r => r.data),
+};
+
+export const Audits = {
+  list: (params?: { meeting_id?: string; skip?: number; limit?: number }) =>
+    http.get<AuditLogResponse[]>("/audits", { params }).then(r => r.data),
+};
 
 export const Memory = {
-  list: (skip = 0, limit = 50, kind?: string) => http.get<MemoryResponse[]>("/memory", { params: { skip, limit, kind } }).then(r => r.data),
-  create: (body: { kind?: string; subject?: string; content: string; importance?: number; meeting_id?: string }) => http.post<MemoryResponse[]>("/memory", body).then(r => r.data),
-  update: (id: string, body: Partial<{ kind: string; subject: string; content: string; importance: number }>) => http.patch<MemoryResponse>(`/memory/${id}`, body).then(r => r.data),
-  remove: (id: string) => http.delete(`/memory/${id}`).then(r => r.data),
-  evolution: (id: string) => http.get<MemoryResponse[]>(`/memory/${id}/evolution`).then(r => r.data),
+  list: (params?: { kind?: string; subject?: string; include_superseded?: boolean; skip?: number; limit?: number }) =>
+    http.get<MemoryResponse[]>("/memories", { params }).then(r => r.data),
+  get: (id: string) => http.get<MemoryResponse>(`/memories/${id}`).then(r => r.data),
+  update: (id: string, body: Partial<{ kind: string; subject: string; content: string; importance: number }>) =>
+    http.patch<MemoryResponse>(`/memories/${id}`, body).then(r => r.data),
+  remove: (id: string) => http.delete(`/memories/${id}`).then(r => r.data),
+  chain: (id: string) => http.get<MemoryResponse[]>(`/memories/${id}/chain`).then(r => r.data),
 };
 
 export const Shares = {
-  create: (id: string, body: { expires_in_hours?: number; password?: string | null }) => http.post<ShareLinkResponse>(`/meetings/${id}/shares`, body).then(r => r.data),
-  revoke: (id: string, token: string) => http.post(`/meetings/${id}/shares/${token}/revoke`).then(r => r.data),
-  view: (token: string, password?: string) => http.get<SharedMeetingResponse>(`/shares/${token}`, { params: { password } }).then(r => r.data),
+  create: (id: string, body?: { allow_download?: boolean; expires_in_days?: number }) =>
+    http.post<ShareLinkResponse>(`/meetings/${id}/shares`, body ?? {}).then(r => r.data),
+  list: (id: string) => http.get<ShareLinkResponse[]>(`/meetings/${id}/shares`).then(r => r.data),
+  revoke: (id: string, token: string) =>
+    http.delete<ShareLinkResponse>(`/meetings/${id}/shares/${token}`).then(r => r.data),
+  view: (token: string) => http.get<SharedMeetingResponse>(`/shared/${token}`).then(r => r.data),
 };
 
 export const Agent = {
-  chat: (body: { message: string; thread_id?: string; confirmation?: ConfirmationOut }) => http.post<AgentChatOut>("/agent/chat", body).then(r => r.data),
+  chat: (body: { message: string; thread_id?: string }) => http.post<AgentChatOut>("/agent/chat", body).then(r => r.data),
+  resume: (body: { thread_id: string; approved: boolean }) => http.post<AgentChatOut>("/agent/resume", body).then(r => r.data),
   stream: streamAgentChat,
 };
 
-export const exportUrl = (id: string, fmt: "pdf" | "docx" | "md") =>
-  `/api/v1/meetings/${id}/exports/${fmt}?token=${useAuth.getState().token}`;
+async function blobDownload(url: string, params: Record<string, any>, filename: string) {
+  const res = await http.get(url, { params, responseType: "blob" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([res.data]));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+export const downloadExport = (id: string, fmt: string) =>
+  blobDownload(`/meetings/${id}/export`, { format: fmt }, `meeting_${id}.${fmt}`);
+export const downloadSharedExport = (token: string, fmt: string) =>
+  blobDownload(`/shared/${token}/export`, { format: fmt }, `shared_${token}.${fmt}`);
 
 export function errMsg(err: any, fallback = "操作失败"): string {
   const d = err?.response?.data?.detail;

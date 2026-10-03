@@ -28,14 +28,28 @@ export interface ActionItemResponse { id: string; content: string; owner: string
 export interface SummaryResponse { summary: string | null; action_items: ActionItemResponse[]; }
 export type TaskState = "PENDING" | "STARTED" | "SUCCESS" | "FAILURE";
 export interface TaskStatus { task_id: string; status: TaskState; result: SummaryResponse | null; detail: string | null; }
-export interface SearchHit { kind: string; id: string; title: string | null; snippet: string; score: number; meeting_id: string; }
-export interface SearchResponse { query: string; hits: SearchHit[]; }
-export interface ShareLinkResponse { token: string; created_at: string; expires_at: string | null; revoked_at: string | null; }
-export interface SharedMeetingResponse {
-  meeting: MeetingResponse; transcript_segments: TranscriptSegment[]; summary: string | null;
-  action_items: ActionItemResponse[]; created_at: string;
+export interface SearchHit {
+  id: string;
+  meeting_id: string;
+  text: string | null;
+  speaker: string | null;
+  created_at: string;
+  similarity: number;
 }
-export interface AuditLogResponse { id: string; event_type: string; detail: any; created_at: string; }
+export interface SearchResponse { query: string; count: number; results: SearchHit[]; }
+export interface ShareLinkResponse {
+  id: string; meeting_id: string; token: string; path: string;
+  allow_download: boolean; expires_at: string | null; revoked_at: string | null; created_at: string;
+}
+export interface SharedMeetingResponse {
+  title: string; summary: string | null; created_at: string; allow_download: boolean;
+  action_items: ActionItemResponse[]; transcripts: string[];
+}
+export interface AuditLogResponse {
+  id: string; user_id: string | null; meeting_id: string | null; action: string;
+  resource: string | null; detail: Record<string, any> | null;
+  ip_address: string | null; user_agent: string | null; created_at: string;
+}
 export type MemoryKind = "decision" | "action" | "preference" | "fact" | "entity";
 export interface MemoryResponse {
   id: string; owner_id: string; meeting_id: string | null; kind: MemoryKind; subject: string | null;
@@ -44,7 +58,16 @@ export interface MemoryResponse {
 }
 export interface MemorySearchHit { id: string; kind: string; subject: string | null; content: string; meeting_id: string | null; importance: number; similarity: number; }
 export interface ConfirmationOut {
-  question: string; kind: string; risk: "sensitive" | "low" | "medium" | "high";
-  detail: string; tool_name: string | null; tool_args: any; resume_command: string;
+  type: string;
+  tool: string;
+  args: Record<string, any>;
+  reason: string;
+  message: string;
 }
-export interface AgentChatOut { report: string; action_items: any[]; thread_id: string; messages: any[]; confirmation: ConfirmationOut | null; }
+export interface AgentChatOut {
+  thread_id: string;
+  status: string;
+  report: string | null;
+  confirmation: ConfirmationOut | null;
+}
+export interface AgentResumeIn { thread_id: string; approved: boolean; }

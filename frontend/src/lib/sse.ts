@@ -4,7 +4,7 @@ import type { AgentChatOut, ConfirmationOut } from "./types";
 export interface AgentStreamHandlers {
   onStart?: (threadId: string) => void;
   onNode?: (node: string, status: string) => void;
-  onConfirmation?: (c: ConfirmationOut) => void;
+  onConfirmation?: (c: ConfirmationOut, threadId: string) => void;
   onDone?: (r: AgentChatOut) => void;
   onError?: (msg: string) => void;
 }
@@ -34,7 +34,7 @@ export async function streamAgentChat(message: string, threadId: string | undefi
       try { data = JSON.parse(dataLine); } catch { continue; }
       if (event === "start") h.onStart?.(data.thread_id);
       else if (event === "node") h.onNode?.(data.node, data.status);
-      else if (event === "confirmation") h.onConfirmation?.(data.confirmation);
+      else if (event === "confirmation") h.onConfirmation?.(data.confirmation, data.thread_id);
       else if (event === "done") h.onDone?.(data);
       else if (event === "error") h.onError?.(data.detail);
     }

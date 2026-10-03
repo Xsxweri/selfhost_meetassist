@@ -4,7 +4,11 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import MeetingList from "./pages/MeetingList";
 import MeetingDetail from "./pages/MeetingDetail";
-import Placeholder from "./pages/Placeholder";
+import AgentChat from "./pages/AgentChat";
+import MemoryLibrary from "./pages/MemoryLibrary";
+import AuditLog from "./pages/AuditLog";
+import SharedMeeting from "./pages/SharedMeeting";
+import Search from "./pages/Search";
 
 function RequireAuth() {
   const token = useAuth((s) => s.token);
@@ -13,7 +17,7 @@ function RequireAuth() {
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
-  { path: "/shared/:token", element: <Placeholder title="分享只读页（P3）" /> },
+  { path: "/shared/:token", element: <SharedMeeting /> },
   {
     element: <RequireAuth />,
     children: [
@@ -23,9 +27,10 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="/meetings" replace /> },
           { path: "/meetings", element: <MeetingList /> },
           { path: "/meetings/:id", element: <MeetingDetail /> },
-          { path: "/agent", element: <Placeholder title="Agent 对话（P2）" /> },
-          { path: "/memory", element: <Placeholder title="记忆库（P2）" /> },
-          { path: "/audit", element: <Placeholder title="审计日志（P3）" /> },
+          { path: "/search", element: <Search /> },
+          { path: "/agent", element: <AgentChat /> },
+          { path: "/memory", element: <MemoryLibrary /> },
+          { path: "/audit", element: <AuditLog /> },
         ],
       },
     ],
