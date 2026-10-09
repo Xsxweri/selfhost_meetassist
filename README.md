@@ -568,4 +568,4 @@ uv run pytest -q
 - 更完善的可观测性（结构化日志 / 追踪）。
 
 ## 许可证与作者
-Author: Xusixue · 分支：`MtAst_dev`
+Author: Xusixue
